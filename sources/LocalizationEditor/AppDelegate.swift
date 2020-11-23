@@ -12,6 +12,8 @@ import Cocoa
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
     @IBOutlet weak var openFolderMenuItem: NSMenuItem!
+    @IBOutlet weak var exportToCSVItem: NSMenuItem!
+    @IBOutlet weak var importFileItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_: Notification) {}
 

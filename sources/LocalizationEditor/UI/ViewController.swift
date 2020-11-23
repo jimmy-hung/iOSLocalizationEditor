@@ -38,111 +38,293 @@ final class ViewController: NSViewController {
 
     @IBOutlet private weak var tableView: NSTableView!
     @IBOutlet private weak var progressIndicator: NSProgressIndicator!
-
-    // MARK: - Properties
-
-    weak var delegate: ViewControllerDelegate?
-
-    private var currentFilter: Filter = .all
-    private var currentSearchTerm: String = ""
-    private let dataSource = LocalizationsDataSource()
-    private var presendedAddViewController: AddViewController?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        setupData()
+  
+  // MARK: - Properties
+  
+  weak var delegate: ViewControllerDelegate?
+  var projectTitle = ""
+  var importLanguagesArr: Array<String> = []
+  
+  private var currentFilter: Filter = .all
+  private var currentSearchTerm: String = ""
+  private let dataSource = LocalizationsDataSource()
+  private var presendedAddViewController: AddViewController?
+  
+  
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    
+    setupData()
+    settingItemAction()
+  }
+  
+  // MARK: - Setup
+  
+  private func setupData() {
+    let cellIdentifiers = [KeyCell.identifier, LocalizationCell.identifier, ActionsCell.identifier]
+    cellIdentifiers.forEach { identifier in
+      let cell = NSNib(nibNamed: identifier, bundle: nil)
+      tableView.register(cell, forIdentifier: NSUserInterfaceItemIdentifier(rawValue: identifier))
     }
-
-    // MARK: - Setup
-
-    private func setupData() {
-        let cellIdentifiers = [KeyCell.identifier, LocalizationCell.identifier, ActionsCell.identifier]
-        cellIdentifiers.forEach { identifier in
-            let cell = NSNib(nibNamed: identifier, bundle: nil)
-            tableView.register(cell, forIdentifier: NSUserInterfaceItemIdentifier(rawValue: identifier))
-        }
-
-        tableView.delegate = self
-        tableView.dataSource = dataSource
-        tableView.allowsColumnResizing = true
-        tableView.usesAutomaticRowHeights = true
-
-        tableView.selectionHighlightStyle = .none
+    
+    tableView.delegate = self
+    tableView.dataSource = dataSource
+    tableView.allowsColumnResizing = true
+    tableView.usesAutomaticRowHeights = true
+    
+    tableView.selectionHighlightStyle = .none
+  }
+  
+  private func reloadData(with languages: [String], title: String?) {
+    delegate?.shouldResetSearchTermAndFilter()
+    
+    let appName = Bundle.main.infoDictionary![kCFBundleNameKey as String] as! String
+    view.window?.title = title.flatMap({ "\(appName) [\($0)]" }) ?? appName
+    
+    let columns = tableView.tableColumns // 上方欄位
+    columns.forEach {
+      self.tableView.removeTableColumn($0)
     }
-
-    private func reloadData(with languages: [String], title: String?) {
-        delegate?.shouldResetSearchTermAndFilter()
-
-        let appName = Bundle.main.infoDictionary![kCFBundleNameKey as String] as! String
-        view.window?.title = title.flatMap({ "\(appName) [\($0)]" }) ?? appName
-
-        let columns = tableView.tableColumns
-        columns.forEach {
-            self.tableView.removeTableColumn($0)
-        }
-
-        // not sure why this is needed but without it autolayout crashes and the whole tableview breaks visually
-        tableView.reloadData()
-
-        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(FixedColumn.key.rawValue))
-        column.title = "key".localized
-        tableView.addTableColumn(column)
-
-        languages.forEach { language in
-            let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(language))
-            column.title = Flag(languageCode: language).emoji
-            column.maxWidth = 460
-            column.minWidth = 50
-            self.tableView.addTableColumn(column)
-        }
-
-        let actionsColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(FixedColumn.actions.rawValue))
-        actionsColumn.title = "actions".localized
-        actionsColumn.maxWidth = 48
-        actionsColumn.minWidth = 32
-        tableView.addTableColumn(actionsColumn)
-
-        tableView.reloadData()
-
-        // Also resize the columns:
-        tableView.sizeToFit()
-
-        // Needed to properly size the actions column
-        DispatchQueue.main.async {
-            self.tableView.sizeToFit()
-            self.tableView.layout()
-        }
+    
+    // not sure why this is needed but without it autolayout crashes and the whole tableview breaks visually
+    tableView.reloadData()
+    
+    let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(FixedColumn.key.rawValue))
+    column.title = "key".localized
+    tableView.addTableColumn(column)
+    
+    languages.forEach { language in
+      let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(language))
+      column.title = Flag(languageCode: language).emoji
+      column.maxWidth = 460
+      column.minWidth = 50
+      self.tableView.addTableColumn(column)
     }
-
-    private func filter() {
-        dataSource.filter(by: currentFilter, searchString: currentSearchTerm)
-        tableView.reloadData()
+    
+    let actionsColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(FixedColumn.actions.rawValue))
+    actionsColumn.title = "actions".localized
+    actionsColumn.maxWidth = 48
+    actionsColumn.minWidth = 32
+    tableView.addTableColumn(actionsColumn)
+    
+    tableView.reloadData()
+    
+    // Also resize the columns:
+    tableView.sizeToFit()
+    
+    // Needed to properly size the actions column
+    DispatchQueue.main.async {
+      self.tableView.sizeToFit()
+      self.tableView.layout()
     }
-
-    private func openFolder() {
-        let openPanel = NSOpenPanel()
-        openPanel.allowsMultipleSelection = false
-        openPanel.canChooseDirectories = true
-        openPanel.canCreateDirectories = true
-        openPanel.canChooseFiles = false
-        openPanel.begin { [unowned self] result -> Void in
-            guard result.rawValue == NSApplication.ModalResponse.OK.rawValue, let url = openPanel.url else {
-                return
+  }
+  
+  private func filter() {
+    dataSource.filter(by: currentFilter, searchString: currentSearchTerm)
+    tableView.reloadData()
+  }
+  
+  private func openFolder() {
+    let openPanel = NSOpenPanel()
+    openPanel.allowsMultipleSelection = false
+    openPanel.canChooseDirectories = true
+    openPanel.canCreateDirectories = true
+    openPanel.canChooseFiles = false
+    openPanel.begin { [unowned self] result -> Void in
+      guard result.rawValue == NSApplication.ModalResponse.OK.rawValue, let url = openPanel.url else {
+        return
+      }
+      self.projectTitle = url.lastPathComponent
+      self.progressIndicator.startAnimation(self)
+      self.dataSource.load(folder: url) { [unowned self] languages, title, localizationFiles in self.reloadData(with: languages, title: title)
+        self.progressIndicator.stopAnimation(self)
+        
+        dataSource.languagesArr = languages as Array
+        
+        if let title = title {
+          self.delegate?.shouldSetLocalizationGroups(groups: localizationFiles)
+          self.delegate?.shouldSelectLocalizationGroup(title: title)
+        }
+      }
+    }
+  }
+  
+  // ====
+  /**
+   setting  tool bar item
+   */
+  func settingItemAction(){
+    let appDelegate = NSApplication.shared.delegate as! AppDelegate
+    appDelegate.exportToCSVItem.action = #selector(ViewController.export)
+    appDelegate.importFileItem.action = #selector(ViewController.importFile)
+  }
+  
+  /**
+   import file to update project content only support csv
+   */
+  @objc func importFile(){
+    let openPanel = NSOpenPanel()
+    openPanel.allowsMultipleSelection = false
+    openPanel.canChooseDirectories = true
+    openPanel.canCreateDirectories = true
+    openPanel.canChooseFiles = true
+    openPanel.begin { [unowned self] result -> Void in
+      guard result.rawValue == NSApplication.ModalResponse.OK.rawValue, let url = openPanel.url else {
+        return
+      }
+      //
+      var dataImport: [String: [String: LocalizationString?]] = [:]
+      do {
+        let file = try String(contentsOf: url)
+        let rows = file.components(separatedBy: .newlines)
+        for (count, row) in rows.enumerated() {
+          if(count == 0){
+            importLanguagesArr = strReplaceArr(str: row, replaceItem: ["key", "\""]).components(separatedBy: ",")
+            importLanguagesArr.removeAll { (str) -> Bool in
+              let str = str == ""
+              return str
             }
-
-            self.progressIndicator.startAnimation(self)
-            self.dataSource.load(folder: url) { [unowned self] languages, title, localizationFiles in
-                self.reloadData(with: languages, title: title)
-                self.progressIndicator.stopAnimation(self)
-
-                if let title = title {
-                    self.delegate?.shouldSetLocalizationGroups(groups: localizationFiles)
-                    self.delegate?.shouldSelectLocalizationGroup(title: title)
-                }
+            continue
+          }
+          let fields = strReplaceArr(str: row, replaceItem: ["\""]).components(separatedBy: ",")
+          if let key = fields.first {
+            var itemDict: [String: LocalizationString?] = [:]
+            for value in 0...importLanguagesArr.count - 1{
+              if fields.count == 1 { continue }
+              importLanguagesArr.removeAll { (str) -> Bool in
+                let str = str == ""
+                return str
+              }
+              if value + 1 < fields.count {
+                let localStr = LocalizationString(key: key, value: fields[value + 1], message: "")
+                itemDict[importLanguagesArr[value]] = localStr
+              }
             }
+            dataImport[key] = itemDict
+          }
         }
+      } catch {
+        print(error)
+      }
+      //
+      updataAndReload(importArr: dataImport)
     }
+  }
+  
+  /**
+   after import file to do
+   */
+  func updataAndReload(importArr: [String: [String: LocalizationString?]]){
+    for updata in importArr {
+      for count in 0...importLanguagesArr.count - 1 {
+        let language = importLanguagesArr[count]
+        dataSource.updateLocalization(language: language, key: updata.key, with: updata.value[language]??.value ?? "" , message: "")
+      }
+    }
+    dataSource.importSource(importData: importArr)
+    tableView.reloadData()
+  }
+  
+  /**
+   export project setting
+   */
+  @objc func export(){
+    dataSource.toCSV()
+    if(dataSource.dataToCSV.count <= 0) {
+      dialogOKCancel(question: "Nothing content",
+                     text: "",
+                     showBtn2: false)
+      return
+    }
+    // ========= write to csv
+    let titleArr = makeTitleArr()
+    let contentArr = makeContentArr()
+    let mixArr = titleArr + contentArr
+    //
+    let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).map(\.path)[0]
+    let filename = "\(projectTitle).csv"
+    let filePathLib = "\(URL(fileURLWithPath: docDir).appendingPathComponent(filename).path)"
+    //
+    do {
+      try mixArr.joined(separator: ",").write(toFile: filePathLib, atomically: true, encoding: .utf8)
+      dialogOKCancel(question: "Export Sucess", text: "\(filePathLib)", showBtn2: true)
+      
+    } catch {
+      dialogOKCancel(question: "Data Error", text: "", showBtn2: false)
+    }
+    // =========
+  }
+  
+  func dialogOKCancel(question: String, text: String, showBtn2: Bool) {
+    let alert: NSAlert = NSAlert()
+    alert.messageText = question
+    alert.informativeText = text
+    alert.alertStyle = NSAlert.Style.warning
+    alert.addButton(withTitle: "OK")
+    if(showBtn2) {
+      alert.addButton(withTitle: "copy path")
+    }
+    let res = alert.runModal()
+    if res == NSApplication.ModalResponse.alertFirstButtonReturn {
+      //
+    } else {
+      let paste = NSPasteboard.general
+      paste.clearContents()
+      paste.setString(text, forType: .string)
+    }
+  }
+  
+  /**
+   set export file title
+   */
+  func makeTitleArr() -> Array<String> {
+    var titleArr = ["key"]
+    for item in dataSource.languagesArr {
+      titleArr.append(item)
+    }
+    return titleArr
+  }
+  
+  /**
+   set export file content
+   */
+  func makeContentArr() -> Array<String> {
+    var contentArr: Array<String> = []
+    for item in dataSource.dataToCSV {
+      let correspondKey = dataSource.languagesArr
+      var stringContent = "\n"
+      for (count, kteam) in correspondKey.enumerated() {
+        if let content = item.value[kteam],
+           let contentKey = content?.key,
+           let contentStr = content?.description {
+          //
+          stringContent += count == 0 ? contentKey : ""
+          //
+          let contentStrArr = contentStr.split(separator: "=")
+          if let str = contentStrArr.last?.description {
+            var str = str.replacingOccurrences(of: "\n", with: "\\n")
+            str = strReplaceArr(str: str, replaceItem: [" "])
+            stringContent += ", " + str
+          }
+        }
+      }
+      contentArr.append(stringContent)
+    }
+    return compareArr(arr: contentArr)
+  }
+  
+  func compareArr(arr: Array<String>) -> Array<String> {
+    return arr.sorted()
+  }
+  
+  func strReplaceArr(str: String, replaceItem: Array<String>) -> String{
+    var string = str
+    for item in replaceItem {
+      string = string.replacingOccurrences(of: item, with: "")
+    }
+    return string
+  }
+  // ====
 }
 
 // MARK: - NSTableViewDelegate
