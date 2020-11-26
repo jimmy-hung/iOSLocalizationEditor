@@ -303,6 +303,7 @@ final class ViewController: NSViewController {
           let contentStrArr = contentStr.split(separator: "=")
           if let str = contentStrArr.last?.description {
             var str = str.replacingOccurrences(of: "\n", with: "\\n")
+            str = str.replacingOccurrences(of: ",", with: "，")
             str = strReplaceArr(str: str, replaceItem: [" "])
             stringContent += ", " + str
           }
