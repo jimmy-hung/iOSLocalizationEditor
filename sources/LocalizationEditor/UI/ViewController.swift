@@ -124,16 +124,35 @@ final class ViewController: NSViewController {
     tableView.reloadData()
   }
   
+  /* TODO: sorting unfinished
+  func getFileData(url: URL){
+    do {
+      let data = try Data(contentsOf: url)
+      let string = String(data: data, encoding: .utf8)
+      let strArr = string?.split(separator: "\n")
+      print("show")
+
+      
+    } catch {
+      let err = error
+      print("some error: \(err)")
+    }
+  }
+ */
+  
   private func openFolder() {
     let openPanel = NSOpenPanel()
     openPanel.allowsMultipleSelection = false
     openPanel.canChooseDirectories = true
     openPanel.canCreateDirectories = true
-    openPanel.canChooseFiles = false
+    openPanel.canChooseFiles = true
     openPanel.begin { [unowned self] result -> Void in
       guard result.rawValue == NSApplication.ModalResponse.OK.rawValue, let url = openPanel.url else {
         return
       }
+      
+      //self.getFileData(url: url) // TODO: sorting unfinished
+      
       self.projectTitle = url.lastPathComponent
       self.progressIndicator.startAnimation(self)
       self.dataSource.load(folder: url) { [unowned self] languages, title, localizationFiles in self.reloadData(with: languages, title: title)
