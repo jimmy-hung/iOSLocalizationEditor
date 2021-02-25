@@ -205,7 +205,8 @@ final class ViewController: NSViewController {
             }
             continue
           }
-          let fields = strReplaceArr(str: row, replaceItem: ["\""]).components(separatedBy: ",")
+
+          let fields = parseCSVRow(row)
           if let key = fields.first {
             var itemDict: [String: LocalizationString?] = [:]
             for value in 0...importLanguagesArr.count - 1{
@@ -343,6 +344,38 @@ final class ViewController: NSViewController {
       string = string.replacingOccurrences(of: item, with: "")
     }
     return string
+  }
+  
+  func parseCSVRow(_ row: String) -> [String] {
+    let commaPlaceholder = ":COMMA_PLACEHOLDER:"
+    let quotePlaceholder = ":QUOTE_PLACEHOLDER:"
+    let doubleQuotesPlaceholder = ":DOUBLEQUOTES_PLACEHOLDER:"
+
+    let line = row.replacingOccurrences(of: "\\\"", with: quotePlaceholder)
+                  .replacingOccurrences(of: "\"\"", with: doubleQuotesPlaceholder)
+
+    let splitted = line.split(separator: "\"")
+    var results: [String] = []
+
+    for (index, value) in splitted.enumerated() {
+      if index % 2 == 1 {
+        let replaced = value.replacingOccurrences(of: ",", with: commaPlaceholder)
+        results.append(replaced)
+      } else {
+        results.append(String(value))
+      }
+    }
+
+    let joined = results.joined(separator: "\"")
+
+    let fields = joined.split(separator: ",")
+      .map {
+        $0.replacingOccurrences(of: commaPlaceholder, with: ",")
+          .replacingOccurrences(of: "\"", with: "")
+          .replacingOccurrences(of: doubleQuotesPlaceholder, with: "\"\"")
+          .replacingOccurrences(of: quotePlaceholder, with: "\"")
+      }
+    return fields
   }
   // ====
 }
